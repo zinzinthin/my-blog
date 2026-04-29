@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <%- include('layout/head.ejs') %>
+  <body>
+    <%- include('layout/nav.ejs') %>
+    <div class="container">
+
+      <h3 class="text-bold">Latest Blog Posts</h3>
+      <small>Total posts: <%= posts.length %></small>
+
+      <!-- search posts -->
+      <form action="" class="my-4" method="post">
+        <div class="input-group mb-3">
+          <input type="text" class="form-control" placeholder="Search posts..." name="search">
+          <button type="submit" class="btn btn-outline-primary">Search</button>
+        </div>
+      </form>
+
+      <% if (posts.length > 0) { %> <% posts.forEach(post => { %>
+      <div class="card post-card">
+        <h3>
+          <a href="/posts/<%= post._id %>" style="text-decoration: none;"><%= post.title %></a>
+        </h3>
+        <small
+          >Posted:
+          <%= post.createdAt ? new Date(post.createdAt).toLocaleString() : 'Unknown' %></small
+        >
+        <p class="text-semi-bold mt-3"><%= post.subtitle %></p>
+        <p><%= post.body %></p>
+        <div class="">
+          <a href="/posts/<%= post._id %>/edit" class="btn btn-sm btn-primary" title="Edit">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </a>
+          <form action="/posts/<%= post._id %>/delete" class="d-inline" onsubmit="return confirm('Are you sure to delete?')" method="post">
+            <button type="submit" class="btn btn-sm btn-danger text-start" title="Delete">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+      <% }) %>
+
+      <% } else { %>
+      <p>There are no blog posts to display.</p>
+      <% } %>
+    </div>
+
+    <%- include('layout/footer.ejs') %>
+
+  </body>
+</html>
