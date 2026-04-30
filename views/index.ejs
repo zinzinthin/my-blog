@@ -6,13 +6,16 @@
     <div class="container">
 
       <h3 class="text-bold">Latest Blog Posts</h3>
-      <small>Total posts: <%= posts.length %></small>
+      <small>Total posts: <%= total %></small>
 
       <!-- search posts -->
-      <form action="" class="my-4" method="post">
+      <form action="/?search=search" class="my-4" method="get">
         <div class="input-group mb-3">
-          <input type="text" class="form-control" placeholder="Search posts..." name="search">
+          <input type="text" name="search" class="form-control" placeholder="Search posts..." value="<%= search || '' %>" />
           <button type="submit" class="btn btn-outline-primary">Search</button>
+          <% if (search) { %>
+          <a href="/" class="btn btn-outline-secondary">Clear</a>
+          <% } %>
         </div>
       </form>
 
@@ -43,6 +46,16 @@
       <% } else { %>
       <p>There are no blog posts to display.</p>
       <% } %>
+
+      <!-- pagination -->
+       <!-- http://localhost:3000/?page=1&search='abc' -->
+       <div class="d-flex justify-content-center align-items-center gap-2 my-4">
+        <a href="/?page=<%= page - 1 %><%= search ? `&search=${encodeURIComponent(search)}` : '' %>" class="btn btn-outline-secondary">Prev</a>
+        
+        <span class="text-muted">Page <%= page %> / <%= totalPages %></span>
+        
+        <a href="/?page=<%= (page + 1) > totalPages ? totalPages : page + 1 %><%= search ? `&search=${encodeURIComponent(search)}` : '' %>" class="btn btn-outline-secondary">Next</a>
+      </div>
     </div>
 
     <%- include('layout/footer.ejs') %>

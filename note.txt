@@ -83,3 +83,14 @@ font awesome 7.2
 
 (iv) load bootstrap JS
      <script src="/bootstrap/js/bootstrap.bundle.min.js" ></script>
+
+----------------------------------------------------------------------------------------
+
+Browsers treat ? = / & : @ + $ # as syntax
+So when used as data, you must encode them
+
+encodeURIComponent("hello&world")
+// "hello%26world"
+
+decodeURIComponent("hello%26world")
+// "hello&world"

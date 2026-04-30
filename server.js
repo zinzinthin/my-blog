@@ -110,20 +110,45 @@ app.use((req, res, next) => {
 // home
 app.get("/", async (req, res) => {
   try {
-    console.log("Fetching posts from MongoDB...");
+
+    const page = Math.max(parseInt(req.query.page) || 1, 1); // ignore NaN
+    const limit = 3;
+    const skip = (page - 1) * limit;
+    
+    console.log(req.query);
+
+    const search = (req.query.search || "").trim();
+
+    // $or => any of this conditions
+    // i => case-insensitive search
+    const filter = search ? {
+      $or: [
+        { title: { $regex: search, $options: "i" } },
+        { subtitle: { $regex: search, $options: "i" } },
+        { body: { $regex: search, $options: "i" } },
+      ]
+    } : {};
 
     const posts = await db
       .collection("posts")
-      .find({})
+      .find(filter)
       .sort({ createdAt: -1 }) // newest first
+      .skip(skip)
+      .limit(limit)
       .toArray();
-
-    console.log(`Found ${posts.length} posts`);
+    
+    // const total = await db.collection("posts").countDocuments(filter);
+    const total = posts.length;
+    const totalPages = Math.max(Math.ceil(total / limit),1);
 
     res.render("index", {
       title: "Home Page",
       posts,
-      postCount: posts.length,
+      total,
+      page,
+      totalPages,
+      limit,
+      search,
     });
   } catch (error) {
     console.log("Error fetching posts from MongoDB", error);
