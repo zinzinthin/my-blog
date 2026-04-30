@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import morgan from "morgan";
 import { MongoClient, ObjectId } from "mongodb";
+import { Server } from "socket.io";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -26,6 +27,29 @@ app.use(express.static(path.join(__dirname, "public")));
 // Serve node_modules files
 app.use('/bootstrap', express.static(path.join(__dirname, "node_modules/bootstrap/dist")));
 app.use('/fontawesome', express.static(path.join(__dirname, "node_modules/@fortawesome/fontawesome-free")));
+
+// Start server
+const expressServer = app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+
+// Socket.IO attached to server
+const io = new Server(expressServer, {
+  cors: {
+    origin: "*", // for dev, in production specify your frontend URL
+    methods: ["GET", "POST"],
+  },
+});
+
+// Socket events
+// optional
+io.on("connection", (socket) => {
+  console.log("Socket connected: " + socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("Socket disconnected: " + socket.id);
+  });
+});
 
 // Middleware to parse JSON request bodies
 app.use(express.json());
@@ -84,9 +108,6 @@ async function connectToMongoDB() {
 
     console.log("Connected to MongoDB");
 
-    app.listen(port, () => {
-      console.log(`Server is running on http://localhost:${port}`);
-    });
   } catch (error) {
     console.error("Error connecting to MongoDB:", error);
     process.exit(1);
@@ -102,6 +123,8 @@ app.use((req, res, next) => {
   }
 
   req.db = db;
+  req.io = io;
+
   next();
 });
 
@@ -218,11 +241,11 @@ app.post("/posts/create", async (req, res) => {
 
     const result = await db.collection("posts").insertOne(newPost);
 
-    // res.render("success", {
-    //   title: "Success",
-    //   message: "Post created successfully!",
-    //   postId: result.insertedId ?? "Unknown",
-    // });
+    // socket io emit
+    req.io.emit("post:created", {
+      id: result.insertedId,
+      ...newPost,
+    });
 
     return res.redirect(`/posts/${slug}`);
     
@@ -339,6 +362,12 @@ app.post("/posts/:id/edit", async (req, res) => {
       });
     }
 
+    // socket io emit
+    req.io.emit("post:updated", {
+      id,
+      ...updateData,
+    });
+
     // redirect to home
     return res.redirect(`/posts/${slug}`);
   } catch (error) {
@@ -369,6 +398,11 @@ app.post("/posts/:id/delete", async (req, res) => {
     if (result.deletedCount === 0) {
       return res.status(404).render("404", { title: "404 Not Found" });
     }
+
+    // socket io emit
+    req.io.emit("post:deleted", {
+      id,
+    });
 
     return res.redirect("/");
   } catch (error) {
@@ -414,7 +448,7 @@ app.use((req, res) => {
 });
 
 process.on("SIGINT", async () => {
-  await client.close();
+  if(client) await client.close();
   console.log("MongoDB connection closed through app termination");
   process.exit(0);
 });

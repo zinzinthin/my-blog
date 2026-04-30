@@ -85,6 +85,17 @@ font awesome 7.2
      <script src="/bootstrap/js/bootstrap.bundle.min.js" ></script>
 
 ----------------------------------------------------------------------------------------
+socket.io
+
+(i) https://socket.io/docs/v4/server-installation/
+    npm install socket.io
+
+(ii) Update server.js (use http server + attach Socket.IO)
+     
+     import {Server} from "socket.io";
+     import http from "http";
+
+----------------------------------------------------------------------------------------
 
 Browsers treat ? = / & : @ + $ # as syntax
 So when used as data, you must encode them
