@@ -31,3 +31,7 @@ body>.container {
     border-radius: 4px;
     background-color: #f1f1f1;
 }
+
+.post-title:hover{
+    text-decoration: underline !important;
+}
