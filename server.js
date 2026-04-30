@@ -37,7 +37,7 @@ const db_password = process.env.DB_PASSWORD;
 const db_name = process.env.DB_NAME;
 
 // const uri = `mongodb+srv://${db_user}:${db_password}@${cluster}.f5jhagk.mongodb.net/?appName=${cluster}`;
-const uri = `mongodb://127.0.0.1:27017/`;
+const uri = process.env.MONGODB_URI ||`mongodb://127.0.0.1:27017/`;
 let client;
 let db;
 
@@ -50,9 +50,9 @@ function slugify(title) {
   return String(title)
     .toLowerCase()
     .trim()
-    .replace("/[^\w\s]/g", "") // remove special character
-    .replace("[/\s_-/]+/g", "-") // spaces, underscore to dash
-    .replace("/^-+|-+/g", ""); // trim (left or right)
+    .replace(/[^\w\s]/g, "")     // remove special characters
+    .replace(/[\s_-]+/g, "-")    // spaces & underscores → dash
+    .replace(/^-+|-+$/g, "");    // trim dashes from start/end
 }
 
 async function uniqueSlug(collection, baseSlug, ignoreId = null) {
@@ -62,7 +62,7 @@ async function uniqueSlug(collection, baseSlug, ignoreId = null) {
   // new-post-one-2
 
   let slug = baseSlug;
-  let i = 1;
+  let i = 0;
 
   while (true) {
     const query = ignoreId ? { slug, _id: { $ne: ignoreId } } : { slug }; // $ne = not equal
@@ -110,20 +110,44 @@ app.use((req, res, next) => {
 // home
 app.get("/", async (req, res) => {
   try {
-    console.log("Fetching posts from MongoDB...");
+
+    const page = Math.max(parseInt(req.query.page) || 1, 1); // ignore NaN
+    const limit = 3;
+    const skip = (page - 1) * limit;
+    
+    console.log(req.query);
+
+    const search = (req.query.search || "").trim();
+
+    // $or => any of this conditions
+    // i => case-insensitive search
+    const filter = search ? {
+      $or: [
+        { title: { $regex: search, $options: "i" } },
+        { subtitle: { $regex: search, $options: "i" } },
+        { body: { $regex: search, $options: "i" } },
+      ]
+    } : {};
 
     const posts = await db
       .collection("posts")
-      .find({})
+      .find(filter)
       .sort({ createdAt: -1 }) // newest first
+      .skip(skip)
+      .limit(limit)
       .toArray();
-
-    console.log(`Found ${posts.length} posts`);
+    
+    const total = await db.collection("posts").countDocuments(filter);
+    const totalPages = Math.max(Math.ceil(total / limit),1);
 
     res.render("index", {
       title: "Home Page",
       posts,
-      postCount: posts.length,
+      total,
+      page,
+      totalPages,
+      limit,
+      search,
     });
   } catch (error) {
     console.log("Error fetching posts from MongoDB", error);
@@ -194,11 +218,14 @@ app.post("/posts/create", async (req, res) => {
 
     const result = await db.collection("posts").insertOne(newPost);
 
-    res.render("success", {
-      title: "Success",
-      message: "Post created successfully!",
-      postId: result.insertedId ?? "Unknown",
-    });
+    // res.render("success", {
+    //   title: "Success",
+    //   message: "Post created successfully!",
+    //   postId: result.insertedId ?? "Unknown",
+    // });
+
+    return res.redirect(`/posts/${slug}`);
+    
   } catch (error) {
     console.error("Error rendering create page:", error);
     res.render("create", {
@@ -247,9 +274,19 @@ app.post("/posts/:id/edit", async (req, res) => {
   try {
     const { id } = req.params;
     const { title, subtitle, body } = req.body;
-    console.log("Received form data:", req.body);
 
-    // Validate form data
+    // check post existance
+    const postCollection = req.db.collection("posts");
+    const _id = new ObjectId(id);
+
+    const existing = await postCollection.findOne({ _id });
+    
+    if (!existing) return res.render("404", {
+      title: "404 Not Found",
+      message: "Invalid ID",
+    });
+
+    // validate form data
     if (!title || !subtitle || !body) {
       return res.render("edit", {
         title: "Edit Post",
@@ -263,11 +300,32 @@ app.post("/posts/:id/edit", async (req, res) => {
       });
     }
 
+    // slug
+    let slug = existing.slug;
+    if(existing.title !== title) {
+      const baseSlug = slugify(title);
+
+      if (!baseSlug) {
+        return res.render("edit", {
+          title: "Edit Post",
+          error: "Title is not valid to generate slug!",
+          post: {
+            _id: id,
+            title,
+            subtitle,
+            body,
+          },
+        });
+      }
+      slug = await uniqueSlug(postCollection, baseSlug, _id);
+    }
+
     // prepare post data
     const updateData = {
       title: title.trim(),
       subtitle: subtitle.trim(),
       body: body.trim(),
+      slug,
       updatedAt: new Date(),
     };
 
@@ -282,7 +340,7 @@ app.post("/posts/:id/edit", async (req, res) => {
     }
 
     // redirect to home
-    return res.redirect("/");
+    return res.redirect(`/posts/${slug}`);
   } catch (error) {
     console.error("Error rendering edit page:", error);
     res.render("edit", {
@@ -322,19 +380,12 @@ app.post("/posts/:id/delete", async (req, res) => {
   }
 });
 
-// single post detail page
-app.get("/posts/:id", async (req, res) => {
+// single post detail page (slug)
+app.get("/posts/:slug", async (req, res) => {
   try {
-    const { id } = req.params;
+    const { slug } = req.params;
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).render("error", {
-        title: "Invalid ID",
-        message: "Post ID is not valid",
-      });
-    }
-
-    const post = await req.db.collection("posts").findOne({ _id: new ObjectId(id) });
+    const post = await req.db.collection("posts").findOne({ slug });
 
     if (!post) {
       return res.status(404).render("404", { title: "404 Not Found" });

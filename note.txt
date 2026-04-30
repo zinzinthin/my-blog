@@ -83,3 +83,43 @@ font awesome 7.2
 
 (iv) load bootstrap JS
      <script src="/bootstrap/js/bootstrap.bundle.min.js" ></script>
+
+----------------------------------------------------------------------------------------
+
+Browsers treat ? = / & : @ + $ # as syntax
+So when used as data, you must encode them
+
+encodeURIComponent("hello&world")
+// "hello%26world"
+
+decodeURIComponent("hello%26world")
+// "hello&world"
+
+----------------------------------------------------------------------------------------
+
+// single post detail page (ID)
+ app.get("/posts/:id", async (req, res) => {
+   try {
+     const { id } = req.params;
+     if (!ObjectId.isValid(id)) {
+       return res.status(400).render("error", {
+         title: "Invalid ID",
+         message: "Post ID is not valid",
+       });
+     }
+     const post = await req.db.collection("posts").findOne({ _id: new ObjectId(id) });
+     if (!post) {
+       return res.status(404).render("404", { title: "404 Not Found" });
+     }
+     res.render("detail", {
+       title: "Post Detail",
+       post,
+     });
+   } catch (error) {
+     console.log("Error fetching post detail", error);
+     res.status(500).render("error", {
+       title: "Server Error",
+       message: error.message || "Something went wrong!",
+     });
+   }
+ });
